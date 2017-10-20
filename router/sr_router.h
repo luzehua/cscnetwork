@@ -56,6 +56,8 @@ struct sr_instance
     FILE* logfile;
 };
 
+int int sr_verifyiplength(sr_ip_hdr_t* );
+
 /* -- sr_main.c -- */
 int sr_verify_routing_table(struct sr_instance* sr);
 

@@ -14,13 +14,14 @@
 #include <stdio.h>
 #include <assert.h>
 
-
 #include "sr_if.h"
 #include "sr_rt.h"
 #include "sr_router.h"
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
+
+
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -30,23 +31,23 @@
  *
  *---------------------------------------------------------------------*/
 
-void sr_init(struct sr_instance* sr)
+void sr_init(struct sr_instance *sr)
 {
-    /* REQUIRES */
-    assert(sr);
+  /* REQUIRES */
+  assert(sr);
 
-    /* Initialize cache and cache cleanup thread */
-    sr_arpcache_init(&(sr->cache));
+  /* Initialize cache and cache cleanup thread */
+  sr_arpcache_init(&(sr->cache));
 
-    pthread_attr_init(&(sr->attr));
-    pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_t thread;
+  pthread_attr_init(&(sr->attr));
+  pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
+  pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_t thread;
 
-    pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
-    
-    /* Add initialization code here! */
+  pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
+
+  /* Add initialization code here! */
 
 } /* -- sr_init -- */
 
@@ -66,19 +67,65 @@ void sr_init(struct sr_instance* sr)
  *
  *---------------------------------------------------------------------*/
 
-void sr_handlepacket(struct sr_instance* sr,
-        uint8_t * packet/* lent */,
-        unsigned int len,
-        char* interface/* lent */)
+
+void sr_handlepacket(struct sr_instance *sr,
+                     uint8_t *packet /* lent */,
+                     unsigned int len,
+                     char *interface /* lent */)
 {
   /* REQUIRES */
   assert(sr);
   assert(packet);
   assert(interface);
 
-  printf("*** -> Received packet of length %d \n",len);
+  printf("*** -> Received packet of length %d \n", len);
+
+  printf("Interface: %s\n", interface);
+  sr_print_routing_table(sr);
+  print_hdr_eth(packet);
+
+  sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *) packet;
+
+  print_addr_eth("*** -> Received packet's desnitation: "etherhdr->ether_dhost);
+  print_addr_eth("*** -> Received packet's desnitation: "etherhdr->ether_shost);
+
+  /*
+  uint16_t ethertype(uint8_t *buf) {
+    sr_ethernet_hdr_t *ehdr = (sr_ethernet_hdr_t *)buf;
+    return ntohs(ehdr->ether_type);
+  }
+  */
+  uint16_t *payload = (packt + sizeof(sr_ethernet_hdr_t));
+
+  if (etherhdr->ether_type == ethertype_arp) {
+    printf("*** An ARP packet\n");
+  } else if ()etherhdr->ether_type == ethertype_ip) {
+    sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)payload;
+
+    if (sr_verifyiplength() == -1) {
+      return;
+    }
+  }
+
+  
+
+  /*TODO: Verify checksum*/
+
+  /*TODO: Deal with ICMP messages
+  if (iphdr->ip_p == ip_protocol_icmp) {
+
+  }
+  */
 
   /* fill in code here */
 
-}/* end sr_ForwardPacket */
+} /* end sr_ForwardPacket */
 
+int sr_verifyiplength(sr_ip_hdr_t *headers)
+{
+  if (headers->ip_len < 20 && headers->ip_len > 60)
+  {
+    return -1;
+  }
+  return 0;
+}
