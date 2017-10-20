@@ -18,7 +18,53 @@
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
     /* Fill this in */
+    /*
+    Since handle_arpreq as defined in the comments above could destroy your
+    current request, make sure to save the next pointer before calling
+    handle_arpreq when traversing through the ARP requests linked list.
+    */
+    struct sr_arpreq * requests;
+    for (requests = sr->cache.requests; requests != NULL; requests = requests.next)  {
+        handle_arpreq(requests)
+    }
 }
+
+/*
+The handle_arpreq() function is a function you should write, and it should
+handle sending ARP requests if necessary:
+
+function handle_arpreq(req):
+    if difftime(now, req->sent) > 1.0
+        if req->times_sent >= 5:
+            send icmp host unreachable to source addr of all pkts waiting
+              on this request
+            arpreq_destroy(req)
+        else:
+            send arp request
+            req->sent = now
+            req->times_sent++
+*/
+void handle_arpreq(struct sr_arpreq *requests) {
+    time_t now;
+    printf(now);
+    if (difftime(now, requests->sent) > 1.0) {
+        if (requests->times_sent >= 5) {
+            /* TODO:
+            send icmp host unreachable to source addr of all pkts waiting
+                        on this request
+            arpreq_destroy(req)
+            */
+        } else {
+            /* TODO:
+            send arp request
+            */
+            requests->sent = now;
+            requests->times_sent++;
+        }
+    }
+
+}
+
 
 /* You should not need to touch the rest of this code. */
 
