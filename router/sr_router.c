@@ -97,9 +97,34 @@ void sr_handlepacket(struct sr_instance *sr,
   */
   uint16_t *payload = (packt + sizeof(sr_ethernet_hdr_t));
 
-  if (etherhdr->ether_type == ethertype_arp) {
+  if (ethertype(packet) == ethertype_arp) {
     printf("*** An ARP packet\n");
-  } else if ()etherhdr->ether_type == ethertype_ip) {
+
+    sr_arp_hdr_t *arphdr = (sr_arp_hdr_t *) payload;
+
+    if (arphdr->ar_hrd != arp_hrd_ethernet) {
+      return;
+    }
+
+    if(arphdr->ar_op == arp_op_request) {
+      /* ARP request*/
+
+      struct sr_arpentry *cached = sr_arpcache_lookup(sr->cache, arphdr->ar_tip) {
+        if (cached == NULL) {
+
+
+        } else {
+          free(cached);
+        }
+      }
+    } else if (arphdr->ar_op == arp_op_reply) {
+      /* TODO: ARP reply */
+    }
+
+
+
+  } else if (ethertype(packet) == ethertype_ip) {
+    /* IP packet */
     sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)payload;
 
     if (sr_verifyiplength() == -1) {
@@ -109,7 +134,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
   
 
-  /*TODO: Verify checksum*/
+  /*TODO: Verify checksum */
 
   /*TODO: Deal with ICMP messages
   if (iphdr->ip_p == ip_protocol_icmp) {
@@ -125,6 +150,9 @@ int sr_verifyiplength(sr_ip_hdr_t *headers)
 {
   if (headers->ip_len < 20 && headers->ip_len > 60)
   {
+    return -1;
+  }
+  if (cksum(headers, sizeof(sr_ip_hdr_t)) != headers->ip_sum ) {
     return -1;
   }
   return 0;
