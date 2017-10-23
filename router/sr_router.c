@@ -112,10 +112,14 @@ void sr_handlepacket(struct sr_instance *sr,
         {
         case arp_op_request:
             /* Reply back if its a ARP request*/
+            /* TODO :add Ethernet Head
+            src and dest address
+            */
             break;
 
         case arp_op_reply:
             /* TODO: cache it if a ARP response*/
+            sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip);
             break;
         }
         break;
@@ -138,9 +142,9 @@ void sr_handlepacket(struct sr_instance *sr,
             {
             /* ICMP messages */
             case ip_protocol_icmp:
-                /*
-            Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. 
-            */
+                /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
+
+
 
                 break;
 
@@ -232,5 +236,9 @@ void send_packet(struct sr_instance *sr,
       /*Queue ARP request*/
       struct sr_arpreq *req = sr_arpcache_queuereq(sr->cache, destip, packet, len, interface);
       handle_arpreq(sr, req);
+  }
+
+  void send_icmp_message() {
+
   }
 }
