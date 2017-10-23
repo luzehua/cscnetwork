@@ -92,7 +92,7 @@ void sr_handlepacket(struct sr_instance *sr,
     return ntohs(ehdr->ether_type);
   }
   */
-  uint16_t *payload = (packt + sizeof(sr_ethernet_hdr_t));
+  uint16_t *payload = (packet + sizeof(sr_ethernet_hdr_t));
 
   switch (ethertype(packet))
   {
@@ -166,7 +166,7 @@ int verifyip(sr_ip_hdr_t *headers)
 void sendpacket(struct sr_instance *sr,
                 uint8_t *packet /* lent */,
                 unsigned int len,
-                char *interface /* lent */,
+                struct sr_if *interface,
                 uint32_t destip)
 {
   /*   
@@ -184,6 +184,13 @@ void sendpacket(struct sr_instance *sr,
 
   if (cached) {
     /* send out packet */
+    sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *)packet;
+    /*Get destination addr from cached table*/
+    memcpy(ehdr->ether_dhost, cached->mac, ETHER_ADDR_LEN);
+    /* Get source addr MAC address from the interface that sent it */
+    memcpy(ehdr->ether_shost, interface->addr, ETHER_ADDR_LEN);
+    
+    sr_send_packet(sr, packet, len, interface->name);
 
 
     free(cached);
