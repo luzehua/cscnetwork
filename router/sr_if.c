@@ -51,7 +51,7 @@ struct sr_if* sr_get_interface_by_ipaddr(struct sr_instance* sr, uint32_t ip)
     return 0;
 } 
 
-struct sr_if* sr_get_interface(struct sr_instance* sr, const char* name)
+struct sr_if* sr_get_interface_by_name(struct sr_instance* sr, const char* name)
 {
     struct sr_if* if_walker = 0;
 

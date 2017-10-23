@@ -81,17 +81,17 @@ void sr_handlepacket(struct sr_instance *sr,
     sr_print_routing_table(sr);
     print_hdr_eth(packet);
 
+    /* Interface where we received the packet*/
+    struct sr_if *sr_interface = sr_get_interface_by_name(sr, interface);
+
+    /* Header of Ethernet packet */
     sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *)packet;
 
     print_addr_eth("*** -> Received packet's desnitation: " etherhdr->ether_dhost);
     print_addr_eth("*** -> Received packet's desnitation: " etherhdr->ether_shost);
 
-    /*
-  uint16_t ethertype(uint8_t *buf) {
-    sr_ethernet_hdr_t *ehdr = (sr_ethernet_hdr_t *)buf;
-    return ntohs(ehdr->ether_type);
-  }
-  */
+    /* package without header */
+
     uint16_t *payload = (packet + sizeof(sr_ethernet_hdr_t));
 
     switch (ethertype(packet))
@@ -106,7 +106,11 @@ void sr_handlepacket(struct sr_instance *sr,
         }
 
         /* Check if router's interface is destination*/
-        struct sr_if *dest = sr_get_interface_by_ipaddr(sr, iphdr->ip_dst);
+        struct sr_if *destination = sr_get_interface_by_ipaddr(sr, arphdr->ar_tip);
+        if (!destination)
+        {
+            return;
+        }
 
         switch (arphdr->ar_op)
         {
@@ -115,6 +119,58 @@ void sr_handlepacket(struct sr_instance *sr,
             /* TODO :add Ethernet Head
             src and dest address
             */
+            uint8_t *arprequest = (uint8_t *)malloc(len);
+            memcpy(arprequest, packet, len);
+
+            sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *)arprequest;
+            // struct sr_ethernet_hdr
+            // {
+            // #ifndef ETHER_ADDR_LEN
+            // #define ETHER_ADDR_LEN 6
+            // #endif
+            //   uint8_t ether_dhost[ETHER_ADDR_LEN]; /* destination ethernet address */
+            //   uint8_t ether_shost[ETHER_ADDR_LEN]; /* source ethernet address */
+            //   uint16_t ether_type;                 /* packet type ID */
+            // } __attribute__((packed));
+            // typedef struct sr_ethernet_hdr sr_ethernet_hdr_t;
+
+            // request_ehdr->ether_dhost = 255;
+            memcpy(request_ehdr->ether_dhost, 255, ETHER_ADDR_LEN);
+            request_ehdr->ether_shost = sr_interface->addr;
+
+            /* Locate at arphdr without ehternet header*/
+            sr_arp_hdr_t *arp_request_hdr = (sr_arp_hdr_t *)(arprequest + sizeof(sr_ethernet_hdr_t));
+
+            // struct sr_arp_hdr
+            // {
+            //   unsigned short ar_hrd;                /* format of hardware address   */
+            //   unsigned short ar_pro;                /* format of protocol address   */
+            //   unsigned char ar_hln;                 /* length of hardware address   */
+            //   unsigned char ar_pln;                 /* length of protocol address   */
+            //   unsigned short ar_op;                 /* ARP opcode (command)         */
+            //   unsigned char ar_sha[ETHER_ADDR_LEN]; /* sender hardware address      */
+            //   uint32_t ar_sip;                      /* sender IP address            */
+            //   unsigned char ar_tha[ETHER_ADDR_LEN]; /* target hardware address      */
+            //   uint32_t ar_tip;                      /* target IP address            */
+            // } __attribute__((packed));
+            // typedef struct sr_arp_hdr sr_arp_hdr_t;
+
+            arp_request_hdr->ar_sip = sr_interface->ip;   /* sender IP address            */
+            arp_request_hdr->ar_sha = sr_interface->addr; /* sender MAC address      */
+            arp_request_hdr->ar_tip = destination->ip;    /* target IP address            */
+            // arp_request_hdr->ar_tha = 0;                  /* target MAC address      */
+            memcpy(arp_request_hdr->ar_tha, 0, ETHER_ADDR_LEN); 
+            arp_request_hdr->ar_op = htons(arp_op_reply); /* ARP opcode (command)         */
+
+            // void send_packet(struct sr_instance *sr,
+            //     uint8_t *packet /* lent */,
+            //     unsigned int len,
+            //     struct sr_if *interface,
+            //     uint32_t destip)
+
+            send_packet(sr, arp_request_hdr, len, sr_interface, destination->ip);
+
+            free(arprequest);
             break;
 
         case arp_op_reply:
@@ -142,15 +198,14 @@ void sr_handlepacket(struct sr_instance *sr,
             {
             /* ICMP messages */
             case ip_protocol_icmp:
+
                 /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
+                if ()
 
-
-
-                break;
+                    break;
 
             /* TCP messages: drop packet and send type 3 ICMP--destination unreachable*/
             case ip_protocol_tcp:
-                break;
             /* UDP messages: drop packet and send type 3 ICMP--destination unreachable*/
             case ip_protocol_udp;
                 break;
@@ -209,26 +264,26 @@ void send_packet(struct sr_instance *sr,
                 struct sr_if *interface,
                 uint32_t destip)
 {
-  /*   
-  # When sending packet to next_hop_ip
-   entry = arpcache_lookup(next_hop_ip)
+    /*   
+    # When sending packet to next_hop_ip
+    entry = arpcache_lookup(next_hop_ip)
 
-   if entry:
-       use next_hop_ip->mac mapping in entry to send the packet
-       free entry
-   else:
-       req = arpcache_queuereq(next_hop_ip, packet, len)
-       handle_arpreq(req)
-  */
+    if entry:
+        use next_hop_ip->mac mapping in entry to send the packet
+        free entry
+    else:
+        req = arpcache_queuereq(next_hop_ip, packet, len)
+        handle_arpreq(req)
+    */
   struct sr_arpentry *cached = sr_arpcache_lookup(sr->cache, arphdr->ar_tip);
 
   if (cached) {
       /* send out packet */
-      sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *)packet;
+      sr_ethernet_hdr_t *ethernet_hdr = (sr_ethernet_hdr_t *)packet;
       /*Get destination addr from cached table*/
-      memcpy(ehdr->ether_dhost, cached->mac, ETHER_ADDR_LEN);
+      memcpy(ethernet_hdr->ether_dhost, cached->mac, ETHER_ADDR_LEN);
       /* Get source addr MAC address from the interface that sent it */
-      memcpy(ehdr->ether_shost, interface->addr, ETHER_ADDR_LEN);
+      memcpy(ethernet_hdr->ether_shost, interface->addr, ETHER_ADDR_LEN);
       sr_send_packet(sr, packet, len, interface->name);
       
       free(cached);
@@ -237,8 +292,8 @@ void send_packet(struct sr_instance *sr,
       struct sr_arpreq *req = sr_arpcache_queuereq(sr->cache, destip, packet, len, interface);
       handle_arpreq(sr, req);
   }
-
-  void send_icmp_message() {
-
-  }
 }
+
+    // void send_icmp_message() {
+
+    //       }
