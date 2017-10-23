@@ -56,7 +56,7 @@ struct sr_instance
     FILE* logfile;
 };
 
-int verifyip(sr_ip_hdr_t* );
+int sanity_check_packet(sr_ip_hdr_t* );
 void send_packet(struct sr_instance*, uint8_t*, unsigned int, struct sr_if*, uint32_t);
 
 /* -- sr_main.c -- */

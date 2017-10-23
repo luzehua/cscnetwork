@@ -34,6 +34,23 @@
  *
  *---------------------------------------------------------------------*/
 
+struct sr_if* sr_get_interface_by_ipaddr(struct sr_instance* sr, uint32_t ip)
+{
+    assert(ip);
+    assert(sr);
+    struct sr_if* if_walker = 0;
+
+    if_walker = sr->if_list;
+
+    while(if_walker)
+    {
+       if(!strncmp(if_walker->ip == ip)
+        { return if_walker; }
+        if_walker = if_walker->next;
+    }
+    return 0;
+} 
+
 struct sr_if* sr_get_interface(struct sr_instance* sr, const char* name)
 {
     struct sr_if* if_walker = 0;
