@@ -21,8 +21,6 @@
 #include "sr_arpcache.h"
 #include "sr_utils.h"
 
-
-
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
  * Scope:  Global
@@ -67,7 +65,6 @@ void sr_init(struct sr_instance *sr)
  *
  *---------------------------------------------------------------------*/
 
-
 void sr_handlepacket(struct sr_instance *sr,
                      uint8_t *packet /* lent */,
                      unsigned int len,
@@ -84,10 +81,10 @@ void sr_handlepacket(struct sr_instance *sr,
   sr_print_routing_table(sr);
   print_hdr_eth(packet);
 
-  sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *) packet;
+  sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *)packet;
 
-  print_addr_eth("*** -> Received packet's desnitation: "etherhdr->ether_dhost);
-  print_addr_eth("*** -> Received packet's desnitation: "etherhdr->ether_shost);
+  print_addr_eth("*** -> Received packet's desnitation: " etherhdr->ether_dhost);
+  print_addr_eth("*** -> Received packet's desnitation: " etherhdr->ether_shost);
 
   /*
   uint16_t ethertype(uint8_t *buf) {
@@ -97,42 +94,49 @@ void sr_handlepacket(struct sr_instance *sr,
   */
   uint16_t *payload = (packt + sizeof(sr_ethernet_hdr_t));
 
-  if (ethertype(packet) == ethertype_arp) {
+  switch (ethertype(packet))
+  {
+
+  case ethertype_arp:
     printf("*** An ARP packet\n");
-
-    sr_arp_hdr_t *arphdr = (sr_arp_hdr_t *) payload;
-
-    if (arphdr->ar_hrd != arp_hrd_ethernet) {
+    sr_arp_hdr_t *arphdr = (sr_arp_hdr_t *)payload;
+    if (arphdr->ar_hrd != arp_hrd_ethernet)
+    {
       return;
     }
 
-    if(arphdr->ar_op == arp_op_request) {
-      /* ARP request*/
+    /* Check if router's interface is destination*/
+    struct sr_if *dest = sr_get_interface(sr, arphdr->af_name);
 
-      struct sr_arpentry *cached = sr_arpcache_lookup(sr->cache, arphdr->ar_tip) {
-        if (cached == NULL) {
+    switch (arphdr->ar_op)
+    {
+    case arp_op_request:
+      /* Reply back if its a ARP request*/
+      break;
+      
 
+      
 
-        } else {
-          free(cached);
-        }
-      }
-    } else if (arphdr->ar_op == arp_op_reply) {
-      /* TODO: ARP reply */
+    
+    case arp_op_reply:
+      /* TODO: cache it if a ARP response*/
+      break;
     }
+    break;
 
-
-
-  } else if (ethertype(packet) == ethertype_ip) {
+  case ethertype_ip:
     /* IP packet */
     sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)payload;
 
-    if (sr_verifyiplength() == -1) {
+    if (verifyip(iphdr) == -1)
+    {
       return;
     }
+    if (iphdr->ip_p == ip_protocol_icmp)
+    {
+    }
+    break;
   }
-
-  
 
   /*TODO: Verify checksum */
 
@@ -146,14 +150,46 @@ void sr_handlepacket(struct sr_instance *sr,
 
 } /* end sr_ForwardPacket */
 
-int sr_verifyiplength(sr_ip_hdr_t *headers)
+int verifyip(sr_ip_hdr_t *headers)
 {
   if (headers->ip_len < 20 && headers->ip_len > 60)
   {
     return -1;
   }
-  if (cksum(headers, sizeof(sr_ip_hdr_t)) != headers->ip_sum ) {
+  if (cksum(headers, sizeof(sr_ip_hdr_t)) != headers->ip_sum)
+  {
     return -1;
   }
   return 0;
+}
+
+void sendpacket(struct sr_instance *sr,
+                uint8_t *packet /* lent */,
+                unsigned int len,
+                char *interface /* lent */,
+                uint32_t destip)
+{
+  /*   
+  # When sending packet to next_hop_ip
+   entry = arpcache_lookup(next_hop_ip)
+
+   if entry:
+       use next_hop_ip->mac mapping in entry to send the packet
+       free entry
+   else:
+       req = arpcache_queuereq(next_hop_ip, packet, len)
+       handle_arpreq(req)
+  */
+  struct sr_arpentry *cached = sr_arpcache_lookup(sr->cache, arphdr->ar_tip);
+
+  if (cached) {
+    /* send out packet */
+
+
+    free(cached);
+  } else {
+    /*Queue ARP request*/
+    struct sr_arpreq *req = sr_arpcache_queuereq(sr->cache, destip, packet, len, interface);
+    handle_arpreq(sr, req);
+  }
 }

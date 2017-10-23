@@ -25,7 +25,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
     */
     struct sr_arpreq * requests;
     for (requests = sr->cache.requests; requests != NULL; requests = requests.next)  {
-        handle_arpreq(requests)
+        handle_arpreq(sr ,requests);
     }
 }
 
@@ -44,7 +44,7 @@ function handle_arpreq(req):
             req->sent = now
             req->times_sent++
 */
-void handle_arpreq(struct sr_arpreq *requests) {
+void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
     time_t now;
     printf(now);
     if (difftime(now, requests->sent) > 1.0) {
@@ -54,6 +54,7 @@ void handle_arpreq(struct sr_arpreq *requests) {
                         on this request
             arpreq_destroy(req)
             */
+            sr_arpreq_destroy(sr->cache, requests;
         } else {
             /* TODO:
             send arp request
