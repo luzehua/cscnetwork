@@ -86,7 +86,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
 
     /* package without ethernet header */
-    uint16_t *payload = (packet + sizeof(sr_ethernet_hdr_t));
+    uint8_t *payload = (packet + sizeof(sr_ethernet_hdr_t));
 
     switch (ethertype(packet)) {
 
@@ -131,7 +131,7 @@ void sr_handlepacket(struct sr_instance *sr,
                     memcpy(arp_request_hdr->ar_tha, 0, ETHER_ADDR_LEN);                 /* target MAC address      */
                     arp_request_hdr->ar_op = htons(arp_op_reply);                       /* ARP opcode (command)    */
 
-                    send_packet(sr, arp_request_hdr, len, sr_interface, destination->ip);
+                    send_packet(sr, packet, len, sr_interface, destination->ip);
 
                     free(eth_request);
                     break;
@@ -246,13 +246,8 @@ void sr_handlepacket(struct sr_instance *sr,
                             return;
                         }
 
-                        if (route) {
-                            send_packet(sr, packet, len, route_intf, route->gw.s_addr);
-                        }
-//                        else {
-//                            /* TODO: send ICMP message */
-//                            handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
-//                        }
+
+                        send_packet(sr, packet, len, route_intf, route->gw.s_addr);
                     }
                     break;
             }
@@ -406,7 +401,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
             new_ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
             new_ip_hdr->ip_id = htons(0);
             new_ip_hdr->ip_off = htons(IP_DF);
-            new_ip_hdr->ip_ttl = 255; /* TODO: Verify this */
+            new_ip_hdr->ip_ttl = INIT_TTL;
             new_ip_hdr->ip_p = ip_protocol_icmp;
 
             /* Port unreachable returns to sender where all else is forwarded */
