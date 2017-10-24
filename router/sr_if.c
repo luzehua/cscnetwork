@@ -68,7 +68,7 @@ struct sr_if *sr_get_interface_addr(struct sr_instance *sr, unsigned char *addr)
     return 0;
 }
 
-struct sr_if *sr_get_interface_by_name(struct sr_instance *sr, const char *name) {
+struct sr_if *sr_get_interface(struct sr_instance *sr, const char *name) {
     struct sr_if *if_walker = 0;
 
     /* -- REQUIRES -- */

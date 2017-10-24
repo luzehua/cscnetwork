@@ -79,7 +79,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
 
     /* Interface where we received the packet*/
-    struct sr_if *sr_interface = sr_get_interface_by_name(sr, interface);
+    struct sr_if *sr_interface = sr_get_interface(sr, interface);
 
 
     /* package without ethernet header */
@@ -147,7 +147,7 @@ void sr_handlepacket(struct sr_instance *sr,
                         sr_ethernet_hdr_t *ethernetHeader = NULL;
 
                         while (packet) {
-                            intf = sr_get_interface_by_name(sr, packet->iface);
+                            intf = sr_get_interface(sr, packet->iface);
 
                             if (intf) {
                                 /* Set src/dest MAC addresses */
@@ -171,7 +171,6 @@ void sr_handlepacket(struct sr_instance *sr,
 
                     /* IP packet */
                     sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
-                    sr_icmp_hdr_t *icmphdr = (sr_icmp_hdr_t *) ip_hdr;
 
                     /* Check length and checksum */
                     if (verify_ip_packet(ip_hdr) == -1) {
@@ -240,7 +239,7 @@ void sr_handlepacket(struct sr_instance *sr,
                             return;
                         }
 
-                        struct sr_if *route_intf = sr_get_interface_by_name(sr, route->interface);
+                        struct sr_if *route_intf = sr_get_interface(sr, route->interface);
                         if (!route_intf) {
                             printf("No interface found with name \"%s\"", route->interface);
                             return;
@@ -344,7 +343,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
     }
 
     /* Get the sending interface */
-    struct sr_if *sending_intf = sr_get_interface_by_name(sr, route->interface);
+    struct sr_if *sending_intf = sr_get_interface(sr, route->interface);
 
     switch (type) {
         /* Regular ICMP */

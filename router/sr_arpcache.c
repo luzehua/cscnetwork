@@ -46,7 +46,8 @@ function handle_arpreq(req):
 */
 void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
     time_t now;
-    printf(now);
+    time(&now);
+
     if (difftime(now, requests->sent) >= 1.0) {
         if (requests->times_sent >= 5) {
             /* TODO:
@@ -66,42 +67,42 @@ void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
 
                 packet = packet->next;
             }
-            sr_arpreq_destroy(sr->cache, requests;
+            sr_arpreq_destroy(&sr->cache, requests);
         } else {
             /* TODO:
             send arp request
             */
-            struct sr_if *intf = sr_get_interface_by_name(sr, requests->packets->iface);
+            struct sr_if *sr_interface = sr_get_interface(sr, requests->packets->iface);
 
-            if (!intf) {
+            if (!sr_interface) {
                 printf("Failed to get interface when creating ARP request\n");
                 return;
             }
 
             /* TODO: this duplicates some code from sr_router.c */
             int len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
-            uint8_t *arpreq = malloc(len);
+            uint8_t *arp_req = malloc(len);
 
             /* Init ethernet header */
-            sr_ethernet_hdr_t *arpreq_ehdr = (sr_ethernet_hdr_t *)arpreq;
+            sr_ethernet_hdr_t *arpreq_ehdr = (sr_ethernet_hdr_t *)arp_req;
             memset(arpreq_ehdr->ether_dhost, 0xFF, ETHER_ADDR_LEN);  /* Broadcast MAC address (ff-ff-ff-ff-ff-ff) */
-            memcpy(arpreq_ehdr->ether_shost, intf->addr, ETHER_ADDR_LEN);
+            memcpy(arpreq_ehdr->ether_shost, sr_interface->addr, ETHER_ADDR_LEN);
             arpreq_ehdr->ether_type = htons(ethertype_arp);
 
             /* Init ARP header */
-            sr_arp_hdr_t *arpreq_arphdr = (sr_arp_hdr_t *)(arpreq + sizeof(sr_ethernet_hdr_t));
+            sr_arp_hdr_t *arpreq_arphdr = (sr_arp_hdr_t *)(arp_req + sizeof(sr_ethernet_hdr_t));
             arpreq_arphdr->ar_hrd = (unsigned short) htons(arp_hrd_ethernet);
             arpreq_arphdr->ar_pro = (unsigned short) htons(ethertype_ip);
             arpreq_arphdr->ar_hln = (unsigned char) ETHER_ADDR_LEN;
             arpreq_arphdr->ar_pln = (unsigned char) sizeof(uint32_t);
             arpreq_arphdr->ar_op = (unsigned short) htons(arp_op_request);
-            memcpy(arpreq_arphdr->ar_sha, intf->addr, ETHER_ADDR_LEN);  /* Source MAC address */
-            arpreq_arphdr->ar_sip = intf->ip;                           /* Source IP address */
+            memcpy(arpreq_arphdr->ar_sha, sr_interface->addr, ETHER_ADDR_LEN);  /* Source MAC address */
+            arpreq_arphdr->ar_sip = sr_interface->ip;                           /* Source IP address */
             memset(arpreq_arphdr->ar_tha, 0x00, ETHER_ADDR_LEN);        /* Target MAC address: ignored by receiver */
             arpreq_arphdr->ar_tip = requests->ip;                            /* Target IP address */
 
-            sr_send_packet(sr, arpreq, len, intf->name);
-            free(arpreq);
+            sr_send_packet(sr, arp_req, len, sr_interface->name);
+            free(arp_req);
 
             requests->sent = now;
             requests->times_sent++;
