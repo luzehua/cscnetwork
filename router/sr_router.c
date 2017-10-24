@@ -187,6 +187,7 @@ void sr_handlepacket(struct sr_instance *sr,
             if (destination) {
                 switch (ip_hdr->ip_p) {
                     /* ICMP messages */
+
                     case ip_protocol_icmp: {
 
                         printf("*** -> IP: An ICMP message\n");
@@ -256,7 +257,8 @@ void sr_handlepacket(struct sr_instance *sr,
             break;
         }
     }
-} /* end sr_ForwardPacket */
+}
+ /* end sr_ForwardPacket */
 
 int verify_ip_packet(sr_ip_hdr_t *headers) {
     /* Check ip header has valid length */
