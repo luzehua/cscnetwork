@@ -110,14 +110,14 @@ enum icmp_type
   icmp_echo_request = 8,
   icmp_time_exceeded = 11,
 
-}
+};
 
 enum icmp_code
 {
   icmp_unreachable_net = 0,
   icmp_unreachable_host = 1,
   icmp_unreachable_port = 3,
-}
+};
 
 /*
  * Structure of an internet header, naked of options.

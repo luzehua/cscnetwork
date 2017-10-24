@@ -109,7 +109,6 @@ void sr_handlepacket(struct sr_instance *sr,
             switch (ntohs(arphdr->ar_op)) {
                 case arp_op_request:
                     /* Reply back if its a ARP request*/
-                    // TODO: not allowed declariation
                     uint8_t *eth_request = malloc(len);
                     memcpy(eth_request, packet, len);
 
@@ -117,7 +116,7 @@ void sr_handlepacket(struct sr_instance *sr,
                     sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *) eth_request;
 
 
-                    // TODO: double check
+
                     memcpy(request_ehdr->ether_dhost, request_ehdr->ether_shost, ETHER_ADDR_LEN);
                     memcpy(request_ehdr->ether_shost, sr_interface->addr, ETHER_ADDR_LEN);
 
@@ -127,7 +126,8 @@ void sr_handlepacket(struct sr_instance *sr,
                     arp_request_hdr->ar_sip = sr_interface->ip;                         /* sender IP address       */
                     memcpy(arp_request_hdr->ar_sha, sr_interface->addr, ETHER_ADDR_LEN);/* sender MAC address      */
                     arp_request_hdr->ar_tip = destination->ip;                          /* target IP address       */
-                    // TODO: double check
+
+
                     memcpy(arp_request_hdr->ar_tha, 0, ETHER_ADDR_LEN);                 /* target MAC address      */
                     arp_request_hdr->ar_op = htons(arp_op_reply);                       /* ARP opcode (command)    */
 
@@ -137,7 +137,7 @@ void sr_handlepacket(struct sr_instance *sr,
                     break;
 
                 case arp_op_reply:
-                    /* TODO: cache it if a ARP response*/
+
                     printf("*** -> ARP cache reply\n");
 
                     struct sr_arpreq *cached = sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip);
@@ -196,7 +196,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
                                 /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
                                 if (icmp_hdr->icmp_type == icmp_echo_request) {
-                                    /* TODO: send ICMP message */
+
                                     handle_icmp_messages(sr, packet, len, icmp_echo_reply, (uint8_t) 0);
                                 }
                                 break;
@@ -206,7 +206,7 @@ void sr_handlepacket(struct sr_instance *sr,
                                 /* UDP messages: drop packet and send type 3 ICMP--destination unreachable*/
                             case ip_protocol_udp:
                                 printf("*** -> IP: TCP/UDP message, drop packet and sent ICMP destination unreachable\n");
-                                /* TODO: send ICMP message */
+
                                 handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_port);
 
                                 break;
@@ -219,7 +219,7 @@ void sr_handlepacket(struct sr_instance *sr,
                         /* Discard packet is time exceeded and sent out ICMP message */
                         if (ip_hdr->ip_ttl == 0) {
                             printf("*** -> IP: TTL -> 0, ICMP time exceeded\n");
-                            /* TODO: send ICMP message */
+
                             handle_icmp_messages(sr, packet, len, icmp_time_exceeded, (uint8_t) 0);
 
                             return;
@@ -234,7 +234,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
                         if (!route) {
                             printf("No route found (sending ICMP net unreachable)\n");
-                            /* TODO: send ICMP message */
+
                             handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
 
                             return;
@@ -271,10 +271,10 @@ int verify_ip_packet(sr_ip_hdr_t *headers) {
 int verify_icmp_packet(uint8_t *payload, unsigned int len) {
 
     /* Verify that header length is valid */
-//    if (len < sizeof(sr_ethernet_hdr_t) + ip_hdr->ip_hl * 4 + sizeof(sr_icmp_hdr_t)) {
-//        printf("ICMP: insufficient header length\n");
-//        return -1;
-//    }
+    if (len < sizeof(sr_ethernet_hdr_t) + ip_hdr->ip_hl * 4 + sizeof(sr_icmp_hdr_t)) {
+        printf("ICMP: insufficient header length\n");
+        return -1;
+    }
 
     sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
 
@@ -331,7 +331,7 @@ void send_packet(struct sr_instance *sr,
 }
 
 
-// TODO: deal with ICMP message
+
 void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int len, uint8_t type, uint8_t code) {
     /* Construct headers */
     sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) packet;
