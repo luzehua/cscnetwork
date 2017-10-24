@@ -268,21 +268,17 @@ int verify_ip_packet(sr_ip_hdr_t *headers) {
         return -1;
     }
     /* Verify checksum */
-    if (cksum(headers, sizeof(sr_ip_hdr_t)) != headers->ip_sum) {
-        printf("*** -> IP checksum failed\n");
-        return -1;
-    }
-    /* Verify checksum of header */
-    /* uint16_t old_cksum = headers->ip_sum;
+
+    uint16_t old_cksum = headers->ip_sum;
     headers->ip_sum = 0;
-    uint16_t new_cksum = cksum(headers, headers->ip_hl * 4);
+    /* length headers->ip_hl * 4*/
+    uint16_t new_cksum = cksum(headers, sizeof(sr_ip_hdr_t));
     headers->ip_sum = old_cksum;
     if (old_cksum != new_cksum) {
         printf("IP: checksum didn't match\n");
         return -1;
     }
     return 0;
-     */
 }
 
 int verify_icmp_packet(uint8_t *payload, unsigned int len) {
