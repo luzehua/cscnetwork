@@ -233,9 +233,7 @@ void sr_handlepacket(struct sr_instance *sr,
 
                         if (!route) {
                             printf("No route found (sending ICMP net unreachable)\n");
-
                             handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
-
                             return;
                         }
 
@@ -245,8 +243,11 @@ void sr_handlepacket(struct sr_instance *sr,
                             return;
                         }
 
-
-                        send_packet(sr, packet, len, route_intf, route->gw.s_addr);
+                        if (route) {
+                            send_packet(sr, packet, len, route_intf, route->gw.s_addr);
+                        } else {
+                            handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
+                        }
                     }
                     break;
                 }
