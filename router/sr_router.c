@@ -114,7 +114,7 @@ void sr_handlepacket(struct sr_instance *sr,
                     memcpy(eth_request, packet, len);
 
                     /* Ethernet header*/
-                    sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *)eth_request;
+                    sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *) eth_request;
 
 
                     // TODO: double check
@@ -151,7 +151,7 @@ void sr_handlepacket(struct sr_instance *sr,
             sr_icmp_hdr_t *icmphdr = (sr_icmp_hdr_t *) ip_hdr;
 
             /* Check length and checksum */
-            if (sanity_check_packet(ip_hdr) == -1) {
+            if (verify_ip_packet(ip_hdr) == -1) {
                 return;
             }
 
@@ -163,10 +163,19 @@ void sr_handlepacket(struct sr_instance *sr,
                     /* ICMP messages */
                     case ip_protocol_icmp:
                         printf("*** -> IP: An ICMP message\n");
-                        /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
-                        if ()
 
-                            break;
+                        if(verify_icmp_packet(payload, len) == -1) {
+                            return;
+                        }
+
+                        sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(payload + (ip_hdr->ip_hl * 4));
+
+
+                        /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
+                        if (icmp_hdr->icmp_type == icmp_echo_request) {
+                            /* TODO: send ICMP message */
+                        }
+                        break;
 
                         /* TCP messages: drop packet and send type 3 ICMP--destination unreachable*/
                     case ip_protocol_tcp:
@@ -220,15 +229,40 @@ void sr_handlepacket(struct sr_instance *sr,
 
 } /* end sr_ForwardPacket */
 
-int sanity_check_packet(sr_ip_hdr_t *headers) {
-    /* meets minimum length */
-    if (headers->ip_len < 20 && headers->ip_len > 60) {
+int verify_ip_packet(sr_ip_hdr_t *headers) {
+    /* Check ip header has valid length */
+    if (headers->ip_len < 20 || headers->ip_len > 60) {
         printf("*** -> IP header length invalid\n");
         return -1;
     }
     /* Verify checksum */
     if (cksum(headers, sizeof(sr_ip_hdr_t)) != headers->ip_sum) {
         printf("*** -> IP checksum failed\n");
+        return -1;
+    }
+    return 0;
+}
+
+int verify_icmp_packet(uint8_t* payload, unsigned int len) {
+
+    /* Verify that header length is valid */
+//    if (len < sizeof(sr_ethernet_hdr_t) + ip_hdr->ip_hl * 4 + sizeof(sr_icmp_hdr_t)) {
+//        printf("ICMP: insufficient header length\n");
+//        return -1;
+//    }
+
+    sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)payload;
+
+
+    sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *)(payload + (ip_hdr->ip_hl * 4));
+
+    /* Verify that the ICMP checksum matches */
+    uint16_t old_cksum = icmp_hdr->icmp_sum;
+    icmp_hdr->icmp_sum = 0;
+    uint16_t new_cksum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - (ip_hdr->ip_hl * 4));
+    icmp_hdr->icmp_sum = old_cksum;
+    if (old_cksum != new_cksum) {
+        printf("ICMP: invalid checksum\n");
         return -1;
     }
     return 0;
@@ -253,9 +287,10 @@ void send_packet(struct sr_instance *sr,
     struct sr_arpentry *cached = sr_arpcache_lookup(&sr->cache, destip);
 
     if (cached) {
+        printf("*** -> ARP mapping cached, send packet out\n");
         /* send out packet */
         sr_ethernet_hdr_t *ethernet_hdr = (sr_ethernet_hdr_t *) packet;
-        /*Get destination addr from cached table*/
+        /* Get destination addr from cached table */
         memcpy(ethernet_hdr->ether_dhost, cached->mac, ETHER_ADDR_LEN);
         /* Get source addr MAC address from the interface that sent it */
         memcpy(ethernet_hdr->ether_shost, interface->addr, ETHER_ADDR_LEN);
@@ -263,11 +298,14 @@ void send_packet(struct sr_instance *sr,
 
         free(cached);
     } else {
-        /*Queue ARP request*/
-        struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, destip, packet, len, interface);
+        printf("*** -> Not cached, send ARP request\n");
+        /* Queue ARP request */
+        struct sr_arpreq *req = sr_arpcache_queuereq(&sr->cache, destip, packet, len, interface->name);
         handle_arpreq(sr, req);
     }
 }
+
+
 
 // TODO: deal with ICMP message
 void handle_ICMP_messages() {
