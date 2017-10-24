@@ -24,7 +24,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
     handle_arpreq when traversing through the ARP requests linked list.
     */
     struct sr_arpreq * requests;
-    for (requests = sr->cache.requests; requests != NULL; requests = requests.next)  {
+    for (requests = sr->cache.requests; requests != NULL; requests = requests->next)  {
         handle_arpreq(sr ,requests);
     }
 }
