@@ -258,11 +258,12 @@ void sr_handlepacket(struct sr_instance *sr,
         }
     }
 }
- /* end sr_ForwardPacket */
+
+/* end sr_ForwardPacket */
 
 int verify_ip_packet(sr_ip_hdr_t *headers) {
     /* Check ip header has valid length */
-    if (headers->ip_len < 20 || headers->ip_len > 60) {
+    if (headers->ip_len < 20) {
         printf("*** -> IP header length invalid\n");
         return -1;
     }
@@ -271,7 +272,17 @@ int verify_ip_packet(sr_ip_hdr_t *headers) {
         printf("*** -> IP checksum failed\n");
         return -1;
     }
+    /* Verify checksum of header */
+    /* uint16_t old_cksum = headers->ip_sum;
+    headers->ip_sum = 0;
+    uint16_t new_cksum = cksum(headers, headers->ip_hl * 4);
+    headers->ip_sum = old_cksum;
+    if (old_cksum != new_cksum) {
+        printf("IP: checksum didn't match\n");
+        return -1;
+    }
     return 0;
+     */
 }
 
 int verify_icmp_packet(uint8_t *payload, unsigned int len) {
