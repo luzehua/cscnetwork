@@ -28,15 +28,14 @@
 struct sr_rt *match_longest_prefix(struct sr_instance *sr, uint32_t ip) {
     struct sr_rt *match = NULL;
 
-    fprintf(stderr, "*** -> Finding longest matching prefix for: ");
+    fprintf(stderr, "Trying to find longest matching prefix for: ");
     print_addr_ip_int(ntohl(ip));
 
     struct sr_rt* route = sr->routing_table;
-
     while (route) {
         /* Check if route's (masked) address matches our IP */
         if ((route->dest.s_addr & route->mask.s_addr) == (ip & route->mask.s_addr)) {
-            /* Check if no previous prefix match */
+            /* Check if it's longer based on the mask */
             if (!match || route->mask.s_addr > match->mask.s_addr) {
                 match = route;
             }
@@ -45,19 +44,25 @@ struct sr_rt *match_longest_prefix(struct sr_instance *sr, uint32_t ip) {
         route = route->next;
     }
 
-    if (!match) {
-        printf("*** -> Couldn't find a prefix\n");
-    } else {
-        printf("*** -> Found match for prefix:\n" );
-        printf("    -> dest:%d\t,gw:%d\t,mask:%d\t,interface:%s\n",
-               ntohl(match->dest.s_addr),
-               ntohl(match->gw.s_addr),
-               ntohl(match->mask.s_addr),
-               match->interface
+    if (match) {
+        char dest_str[15];
+        char gw_str[15];
+        char mask_str[15];
+        addr_ip_int(dest_str, ntohl(match->dest.s_addr));
+        addr_ip_int(gw_str, ntohl(match->gw.s_addr));
+        addr_ip_int(mask_str, ntohl(match->mask.s_addr));
+        printf(
+                "Found match for prefix: {dest:\"%s\",gw:\"%s\",mask:\"%s\",interface:\"%s\"}\n",
+                dest_str,
+                gw_str,
+                mask_str,
+                match->interface
         );
-
-        return match;
+    } else {
+        printf("Couldn't find a prefix\n");
     }
+
+    return match;
 }
 
 /*---------------------------------------------------------------------

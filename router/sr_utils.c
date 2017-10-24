@@ -20,6 +20,17 @@ uint16_t cksum (const void *_data, int len) {
 }
 
 
+void addr_ip_int(char* buf, uint32_t ip) {
+  sprintf(
+          buf,
+          "%d.%d.%d.%d",
+          ip >> 24,
+          (ip << 8) >> 24,
+          (ip << 16) >> 24,
+          (ip << 24) >> 24
+  );
+}
+
 uint16_t ethertype(uint8_t *buf) {
   sr_ethernet_hdr_t *ehdr = (sr_ethernet_hdr_t *)buf;
   return ntohs(ehdr->ether_type);
