@@ -87,7 +87,8 @@ void sr_handlepacket(struct sr_instance *sr,
 
     switch (ethertype(packet)) {
 
-        case ethertype_arp:
+        case ethertype_arp: {
+
 
             printf("*** -> ARP packet received\n");
             sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *) payload;
@@ -123,7 +124,8 @@ void sr_handlepacket(struct sr_instance *sr,
                     arp_request_hdr->ar_sip = sr_interface->ip;                         /* sender IP address       */
                     arp_request_hdr->ar_tip = arp_hdr->ar_sip;                          /* target IP address       */
                     memcpy(arp_request_hdr->ar_sha, sr_interface->addr, ETHER_ADDR_LEN);/* sender MAC address      */
-                    memcpy(arp_request_hdr->ar_tha, arp_hdr->ar_sha, ETHER_ADDR_LEN);            /* target MAC address      */
+                    memcpy(arp_request_hdr->ar_tha, arp_hdr->ar_sha,
+                           ETHER_ADDR_LEN);            /* target MAC address      */
                     arp_request_hdr->ar_op = htons(arp_op_reply);                       /* ARP opcode (command)    */
 
                     send_packet(sr, packet, len, sr_interface, arp_hdr->ar_sip);
@@ -164,94 +166,97 @@ void sr_handlepacket(struct sr_instance *sr,
                     }
                     break;
                 }
+            }
+        }
 
+        case ethertype_ip: {
+            printf("*** -> IP packet received\n");
 
-                case ethertype_ip: {
+            /* IP packet */
+            sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
 
-                    /* IP packet */
-                    sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
+            /* Check length and checksum */
+            if (verify_ip_packet(ip_hdr) == -1) {
+                return;
+            }
 
-                    /* Check length and checksum */
-                    if (verify_ip_packet(ip_hdr) == -1) {
-                        return;
-                    }
+            /* Check if router's interface is destination*/
+            struct sr_if *destination = sr_get_interface_by_ipaddr(sr, ip_hdr->ip_dst);
 
-                    /* Check if router's interface is destination*/
-                    struct sr_if *destination = sr_get_interface_by_ipaddr(sr, ip_hdr->ip_dst);
+            if (destination) {
+                switch (ip_hdr->ip_p) {
+                    /* ICMP messages */
+                    case ip_protocol_icmp:
+                        printf("*** -> IP: An ICMP message\n");
 
-                    if (destination) {
-                        switch (ip_hdr->ip_p) {
-                            /* ICMP messages */
-                            case ip_protocol_icmp:
-                                printf("*** -> IP: An ICMP message\n");
-
-                                if (verify_icmp_packet(payload, len) == -1) {
-                                    return;
-                                }
-
-                                sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *) (payload + (ip_hdr->ip_hl * 4));
-
-
-                                /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
-                                if (icmp_hdr->icmp_type == icmp_echo_request) {
-
-                                    handle_icmp_messages(sr, packet, len, icmp_echo_reply, (uint8_t) 0);
-                                }
-                                break;
-
-                                /* TCP messages: drop packet and send type 3 ICMP--destination unreachable*/
-                            case ip_protocol_tcp:
-                                /* UDP messages: drop packet and send type 3 ICMP--destination unreachable*/
-                            case ip_protocol_udp:
-                                printf("*** -> IP: TCP/UDP message, drop packet and sent ICMP destination unreachable\n");
-
-                                handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_port);
-
-                                break;
-                        }
-                    } else {
-                        /* Not the destination, forward packet*/
-                        printf("*** -> IP: Forward packet, destination not in router's interface\n");
-                        ip_hdr->ip_ttl--;
-
-                        /* Discard packet is time exceeded and sent out ICMP message */
-                        if (ip_hdr->ip_ttl == 0) {
-                            printf("*** -> IP: TTL -> 0, ICMP time exceeded\n");
-
-                            handle_icmp_messages(sr, packet, len, icmp_time_exceeded, (uint8_t) 0);
-
+                        if (verify_icmp_packet(payload, len) == -1) {
                             return;
                         }
 
-                        /* recompute the checksum over the changed header before forwarding it to the next hop. */
-                        ip_hdr->ip_sum = 0;
-                        ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+                        sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *) (payload + (ip_hdr->ip_hl * 4));
 
-                        /* Implement longest prefix matching to get right entry in routing table */
-                        struct sr_rt *route = match_longest_prefix(sr, ip_hdr->ip_dst);
 
-                        if (!route) {
-                            printf("No route found (sending ICMP net unreachable)\n");
-                            handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
-                            return;
+                        /* Echo reply (type 0)Sent in response to an echo request (ping) to one of the router’s interfaces. */
+                        if (icmp_hdr->icmp_type == icmp_echo_request) {
+
+                            handle_icmp_messages(sr, packet, len, icmp_echo_reply, (uint8_t) 0);
                         }
+                        break;
 
-                        struct sr_if *route_intf = sr_get_interface(sr, route->interface);
-                        if (!route_intf) {
-                            printf("No interface found with name \"%s\"", route->interface);
-                            return;
-                        }
+                        /* TCP messages: drop packet and send type 3 ICMP--destination unreachable*/
+                    case ip_protocol_tcp:
+                        /* UDP messages: drop packet and send type 3 ICMP--destination unreachable*/
+                    case ip_protocol_udp:
+                        printf("*** -> IP: TCP/UDP message, drop packet and sent ICMP destination unreachable\n");
 
-                        if (route) {
-                            send_packet(sr, packet, len, route_intf, route->gw.s_addr);
-                        } else {
-                            handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
-                        }
-                    }
-                    break;
+                        handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_port);
+
+                        break;
+                }
+            } else {
+                /* Not the destination, forward packet*/
+                printf("*** -> IP: Forward packet, destination not in router's interface\n");
+                ip_hdr->ip_ttl--;
+
+                /* Discard packet is time exceeded and sent out ICMP message */
+                if (ip_hdr->ip_ttl == 0) {
+                    printf("*** -> IP: TTL -> 0, ICMP time exceeded\n");
+
+                    handle_icmp_messages(sr, packet, len, icmp_time_exceeded, (uint8_t) 0);
+
+                    return;
+                }
+
+                /* recompute the checksum over the changed header before forwarding it to the next hop. */
+                ip_hdr->ip_sum = 0;
+                ip_hdr->ip_sum = cksum(ip_hdr, sizeof(sr_ip_hdr_t));
+
+                /* Implement longest prefix matching to get right entry in routing table */
+                struct sr_rt *route = match_longest_prefix(sr, ip_hdr->ip_dst);
+
+                if (!route) {
+                    printf("No route found (sending ICMP net unreachable)\n");
+                    handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
+                    return;
+                }
+
+                struct sr_if *route_intf = sr_get_interface(sr, route->interface);
+                if (!route_intf) {
+                    printf("No interface found with name \"%s\"", route->interface);
+                    return;
+                }
+
+                if (route) {
+                    send_packet(sr, packet, len, route_intf, route->gw.s_addr);
+                } else {
+                    handle_icmp_messages(sr, packet, len, icmp_dest_unreachable, icmp_unreachable_net);
                 }
             }
+            break;
+        }
     }
+}
+
 } /* end sr_ForwardPacket */
 
 int verify_ip_packet(sr_ip_hdr_t *headers) {
