@@ -37,10 +37,7 @@ struct sr_rt *match_longest_prefix(struct sr_instance *sr, uint32_t ip) {
         /* Check if route's (masked) address matches our IP */
         if ((route->dest.s_addr & route->mask.s_addr) == (ip & route->mask.s_addr)) {
             /* Check if no previous prefix match */
-            if (!match) {
-                match = route;
-                /* Check if it's the longest one so far*/
-            } else if(route->mask.s_addr > match->mask.s_addr) {
+            if (!match || route->mask.s_addr > match->mask.s_addr) {
                 match = route;
             }
         }
