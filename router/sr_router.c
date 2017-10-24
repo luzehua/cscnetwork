@@ -81,9 +81,6 @@ void sr_handlepacket(struct sr_instance *sr,
     /* Interface where we received the packet*/
     struct sr_if *sr_interface = sr_get_interface_by_name(sr, interface);
 
-    /* Header of Ethernet packet */
-    sr_ethernet_hdr_t *etherhdr = (sr_ethernet_hdr_t *) packet;
-
 
     /* package without ethernet header */
     uint8_t *payload = (packet + sizeof(sr_ethernet_hdr_t));
@@ -91,30 +88,30 @@ void sr_handlepacket(struct sr_instance *sr,
     switch (ethertype(packet)) {
 
         case ethertype_arp:
+
             printf("*** -> ARP packet received\n");
-            sr_arp_hdr_t *arphdr = (sr_arp_hdr_t *) payload;
+            sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *) payload;
 
             /* Check it's a valid ethernet packet*/
-            if (ntohs(arphdr->ar_hrd) != arp_hrd_ethernet) {
+            if (ntohs(arp_hdr->ar_hrd) != arp_hrd_ethernet) {
                 printf("*** -> ARP: Not an valid ethernet frame\n");
                 return;
             }
 
             /* Check if router's interface is destination*/
-            struct sr_if *destination = sr_get_interface_by_ipaddr(sr, arphdr->ar_tip);
+            struct sr_if *destination = sr_get_interface_by_ipaddr(sr, arp_hdr->ar_tip);
             if (!destination) {
                 return;
             }
 
-            switch (ntohs(arphdr->ar_op)) {
-                case arp_op_request:
+            switch (ntohs(arp_hdr->ar_op)) {
+                case arp_op_request: {
                     /* Reply back if its a ARP request*/
                     uint8_t *eth_request = malloc(len);
                     memcpy(eth_request, packet, len);
 
                     /* Ethernet header*/
                     sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *) eth_request;
-
 
 
                     memcpy(request_ehdr->ether_dhost, request_ehdr->ether_shost, ETHER_ADDR_LEN);
@@ -135,12 +132,13 @@ void sr_handlepacket(struct sr_instance *sr,
 
                     free(eth_request);
                     break;
+                }
 
-                case arp_op_reply:
 
+                case arp_op_reply: {
                     printf("*** -> ARP cache reply\n");
 
-                    struct sr_arpreq *cached = sr_arpcache_insert(&sr->cache, arphdr->ar_sha, arphdr->ar_sip);
+                    struct sr_arpreq *cached = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
 
                     if (cached) {
                         struct sr_packet *packet = cached->packets;
@@ -154,7 +152,7 @@ void sr_handlepacket(struct sr_instance *sr,
                             if (intf) {
                                 /* Set src/dest MAC addresses */
                                 ethernetHeader = (sr_ethernet_hdr_t *) (packet->buf);
-                                memcpy(ethernetHeader->ether_dhost, arphdr->ar_sha, ETHER_ADDR_LEN);
+                                memcpy(ethernetHeader->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
                                 memcpy(ethernetHeader->ether_shost, intf->addr, ETHER_ADDR_LEN);
 
                                 sr_send_packet(sr, packet->buf, packet->len, packet->iface);
@@ -166,9 +164,11 @@ void sr_handlepacket(struct sr_instance *sr,
                         sr_arpreq_destroy(&sr->cache, cached);
                     }
                     break;
+                }
 
 
-                case ethertype_ip:
+                case ethertype_ip: {
+
                     /* IP packet */
                     sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
                     sr_icmp_hdr_t *icmphdr = (sr_icmp_hdr_t *) ip_hdr;
@@ -250,6 +250,7 @@ void sr_handlepacket(struct sr_instance *sr,
                         send_packet(sr, packet, len, route_intf, route->gw.s_addr);
                     }
                     break;
+                }
             }
     }
 } /* end sr_ForwardPacket */
@@ -269,15 +270,13 @@ int verify_ip_packet(sr_ip_hdr_t *headers) {
 }
 
 int verify_icmp_packet(uint8_t *payload, unsigned int len) {
+    sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
 
     /* Verify that header length is valid */
     if (len < sizeof(sr_ethernet_hdr_t) + ip_hdr->ip_hl * 4 + sizeof(sr_icmp_hdr_t)) {
         printf("ICMP: insufficient header length\n");
         return -1;
     }
-
-    sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) payload;
-
 
     sr_icmp_hdr_t *icmp_hdr = (sr_icmp_hdr_t *) (payload + (ip_hdr->ip_hl * 4));
 
@@ -329,7 +328,6 @@ void send_packet(struct sr_instance *sr,
         handle_arpreq(sr, req);
     }
 }
-
 
 
 void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int len, uint8_t type, uint8_t code) {
