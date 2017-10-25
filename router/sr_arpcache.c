@@ -16,16 +16,20 @@
   checking whether we should resend an request or destroy the arp request.
   See the comments in the header file for an idea of what it should look like.
 */
-void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    /* Fill this in */
+void sr_arpcache_sweepreqs(struct sr_instance *sr) {
     /*
     Since handle_arpreq as defined in the comments above could destroy your
     current request, make sure to save the next pointer before calling
     handle_arpreq when traversing through the ARP requests linked list.
     */
-    struct sr_arpreq * requests;
-    for (requests = sr->cache.requests; requests != NULL; requests = requests->next)  {
-        handle_arpreq(sr ,requests);
+    struct sr_arpreq *request  = sr->cache.requests;
+
+    struct sr_arpreq *next = NULL;
+
+    while (request) {
+        next = request->next;
+        handle_arpreq(sr, request);
+        request = next;
     }
 }
 
