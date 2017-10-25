@@ -114,20 +114,19 @@ void sr_handlepacket(struct sr_instance *sr,
                     /* Ethernet header*/
                     sr_ethernet_hdr_t *request_ehdr = (sr_ethernet_hdr_t *) eth_request;
 
-                    /* Reply dest MAC address is request source MAC address */
+                    /* Init ethernet header, swap destination MAC and source MAC address*/
                     memcpy(request_ehdr->ether_dhost, request_ehdr->ether_shost, ETHER_ADDR_LEN);
                     memcpy(request_ehdr->ether_shost, sr_interface->addr, ETHER_ADDR_LEN);
 
-                    /* Locate at ARP header without ethernet header */
+                    /* Init ARP header */
                     sr_arp_hdr_t *arp_request_hdr = (sr_arp_hdr_t *) (eth_request + sizeof(sr_ethernet_hdr_t));
-
                     arp_request_hdr->ar_sip = sr_interface->ip;                         /* sender IP address       */
                     arp_request_hdr->ar_tip = arp_hdr->ar_sip;                          /* target IP address       */
                     memcpy(arp_request_hdr->ar_sha, sr_interface->addr, ETHER_ADDR_LEN);/* sender MAC address      */
                     memcpy(arp_request_hdr->ar_tha, arp_hdr->ar_sha, ETHER_ADDR_LEN);   /* target MAC address      */
                     arp_request_hdr->ar_op = htons(arp_op_reply);                       /* ARP opcode (command)    */
 
-                    send_packet(sr, packet, len, sr_interface, arp_hdr->ar_sip);
+                    send_packet(sr, eth_request, len, sr_interface, arp_hdr->ar_sip);
 
                     free(eth_request);
 

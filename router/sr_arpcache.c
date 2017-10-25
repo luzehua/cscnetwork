@@ -54,11 +54,7 @@ void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
 
     if (difftime(now, requests->sent) >= 1.0) {
         if (requests->times_sent >= 5) {
-            /* TODO:
-            send icmp host unreachable to source addr of all pkts waiting
-                        on this request
-            arpreq_destroy(req)
-            */
+
             struct sr_packet *packet = requests->packets;
             sr_ethernet_hdr_t* packet_ehdr;
             while (packet) {
@@ -73,17 +69,14 @@ void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
             }
             sr_arpreq_destroy(&sr->cache, requests);
         } else {
-            /* TODO:
-            send arp request
-            */
+
             struct sr_if *sr_interface = sr_get_interface(sr, requests->packets->iface);
 
             if (!sr_interface) {
-                printf("Failed to get interface when creating ARP request\n");
+                printf("*** -> Failed to get interface when creating ARP request\n");
                 return;
             }
 
-            /* TODO: this duplicates some code from sr_router.c */
             int len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
             uint8_t *arp_req = malloc(len);
 
@@ -101,8 +94,8 @@ void handle_arpreq(struct sr_instance *sr,struct sr_arpreq *requests) {
             arpreq_arphdr->ar_pln = (unsigned char) sizeof(uint32_t);
             arpreq_arphdr->ar_op = (unsigned short) htons(arp_op_request);
             memcpy(arpreq_arphdr->ar_sha, sr_interface->addr, ETHER_ADDR_LEN);  /* Source MAC address */
+            memset(arpreq_arphdr->ar_tha, 0x00, ETHER_ADDR_LEN);        /* Target MAC address: 00:00:00:00:00 */
             arpreq_arphdr->ar_sip = sr_interface->ip;                           /* Source IP address */
-            memset(arpreq_arphdr->ar_tha, 0x00, ETHER_ADDR_LEN);        /* Target MAC address: ignored by receiver */
             arpreq_arphdr->ar_tip = requests->ip;                            /* Target IP address */
 
             sr_send_packet(sr, arp_req, len, sr_interface->name);
