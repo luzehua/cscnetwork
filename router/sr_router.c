@@ -142,17 +142,17 @@ void sr_handlepacket(struct sr_instance *sr,
                     if (cached) {
                         struct sr_packet *packet = cached->packets;
 
-                        struct sr_if *intf = NULL;
-                        sr_ethernet_hdr_t *ethernetHeader = NULL;
+                        struct sr_if *router_interface = NULL;
+                        sr_ethernet_hdr_t *ethernet_hdr = NULL;
 
                         while (packet) {
-                            intf = sr_get_interface(sr, packet->iface);
+                            router_interface = sr_get_interface(sr, packet->iface);
 
-                            if (intf) {
+                            if (router_interface) {
                                 /* Set src/dest MAC addresses */
-                                ethernetHeader = (sr_ethernet_hdr_t *) (packet->buf);
-                                memcpy(ethernetHeader->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
-                                memcpy(ethernetHeader->ether_shost, intf->addr, ETHER_ADDR_LEN);
+                                ethernet_hdr = (sr_ethernet_hdr_t *) (packet->buf);
+                                memcpy(ethernet_hdr->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
+                                memcpy(ethernet_hdr->ether_shost, router_interface->addr, ETHER_ADDR_LEN);
 
                                 sr_send_packet(sr, packet->buf, packet->len, packet->iface);
                             }
@@ -252,10 +252,7 @@ void sr_handlepacket(struct sr_instance *sr,
                     printf("No interface found with name \"%s\"", route->interface);
                     return;
                 }
-
-                if (route) {
-                    send_packet(sr, packet, len, route_intf, route->gw.s_addr);
-                }
+                send_packet(sr, packet, len, route_intf, route->gw.s_addr);
             }
             break;
         }
@@ -346,23 +343,21 @@ void send_packet(struct sr_instance *sr,
 
 
 void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int len, uint8_t type, uint8_t code) {
-    /* Construct headers */
+    /* Construct ethernet and ip header */
     sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) packet;
     sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *) (packet + sizeof(sr_ethernet_hdr_t));
 
     /* Get longest matching prefix for source */
-    struct sr_rt *route = match_longest_prefix(sr, ip_hdr->ip_src);
+    struct sr_rt *match_route = match_longest_prefix(sr, ip_hdr->ip_src);
 
-    if (!route) {
+    if (!match_route) {
         printf("send_icmp_msg: Routing table entry not found\n");
         return;
     }
 
-    /* Get the sending interface */
-    struct sr_if *sending_intf = sr_get_interface(sr, route->interface);
+    struct sr_if *out_interface = sr_get_interface(sr, match_route->interface);
 
     switch (type) {
-        /* Regular ICMP */
         case icmp_echo_reply: {
             /* Update Ethernet Header source host/destination host */
             memset(eth_hdr->ether_shost, 0, ETHER_ADDR_LEN);
@@ -382,7 +377,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
             icmp_hdr->icmp_sum = 0;
             icmp_hdr->icmp_sum = cksum(icmp_hdr, ntohs(ip_hdr->ip_len) - sizeof(sr_ip_hdr_t));
 
-            send_packet(sr, packet, len, sending_intf, route->gw.s_addr);
+            send_packet(sr, packet, len, out_interface, match_route->gw.s_addr);
 
             break;
         }
@@ -394,10 +389,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
             unsigned int new_len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t);
             uint8_t *new_packet = malloc(new_len);
 
-            /* Sanity Check */
-            assert(new_packet);
-
-            /* Need to construct new headers for type 3 */
+            /* Construct headers */
             sr_ethernet_hdr_t *new_eth_hdr = (sr_ethernet_hdr_t *) new_packet;
             sr_ip_hdr_t *new_ip_hdr = (sr_ip_hdr_t *) (new_packet + sizeof(sr_ethernet_hdr_t));
             sr_icmp_t3_hdr_t *icmp_hdr = (sr_icmp_t3_hdr_t *) (new_packet + sizeof(sr_ethernet_hdr_t) +
@@ -410,7 +402,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
 
             /* Set ip_hdr */
             new_ip_hdr->ip_v = 4;
-            new_ip_hdr->ip_hl = sizeof(sr_ip_hdr_t) / 4; /* ip_hl is in words */
+            new_ip_hdr->ip_hl = sizeof(sr_ip_hdr_t) / 4;
             new_ip_hdr->ip_tos = 0;
             new_ip_hdr->ip_len = htons(sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t));
             new_ip_hdr->ip_id = htons(0);
@@ -419,7 +411,7 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
             new_ip_hdr->ip_p = ip_protocol_icmp;
 
             /* Port unreachable returns to sender where all else is forwarded */
-            new_ip_hdr->ip_src = code == icmp_dest_unreachable ? ip_hdr->ip_dst : sending_intf->ip;
+            new_ip_hdr->ip_src = code == icmp_dest_unreachable ? ip_hdr->ip_dst : out_interface->ip;
             new_ip_hdr->ip_dst = ip_hdr->ip_src;
 
             new_ip_hdr->ip_sum = 0;
@@ -429,12 +421,12 @@ void handle_icmp_messages(struct sr_instance *sr, uint8_t *packet, unsigned int 
             icmp_hdr->icmp_type = type;
             icmp_hdr->icmp_code = code;
             icmp_hdr->unused = 0;
-            icmp_hdr->next_mtu = 0; /* May need additional code here to handle code 4 */
+            icmp_hdr->next_mtu = 0;
             memcpy(icmp_hdr->data, ip_hdr, ICMP_DATA_SIZE);
             icmp_hdr->icmp_sum = 0;
             icmp_hdr->icmp_sum = cksum(icmp_hdr, sizeof(sr_icmp_t3_hdr_t));
 
-            send_packet(sr, new_packet, new_len, sending_intf, route->gw.s_addr);
+            send_packet(sr, new_packet, new_len, out_interface, match_route->gw.s_addr);
             free(new_packet);
             break;
         }
